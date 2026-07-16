@@ -205,8 +205,9 @@ branch を削除すると子 PR が retarget されず close されることが�
 
 ## Safety Notes
 
-- Never delete a branch while any open PR still uses it as base — check
-  with `gh pr list --base <branch> --state open` first.
+- Never delete a branch while any open PR still uses it as base or head —
+  check with `gh pr list --base <branch> --state open` and
+  `gh pr list --head <branch> --state open` first.
 - `--delete-branch` is banned inside a stack, including combined with
   `--auto`.
 - After every merge, confirm `"state": "MERGED"` before the next mutation;

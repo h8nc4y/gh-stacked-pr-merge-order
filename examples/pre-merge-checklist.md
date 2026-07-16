@@ -29,6 +29,17 @@ integration. Placeholders throughout; nothing refers to a real repository.
   plan for: bounded polling with `gh pr checks <n> --watch=false`, or
   `gh pr merge --auto` (never with `--delete-branch` in a stack), and a
   `MERGED`-state check after every merge.
+- [ ] Auto-delete setting checked:
+
+  ```bash
+  gh repo view <owner>/<name> --json deleteBranchOnMerge
+  ```
+
+  If `true`, the server deletes each head branch as its PR merges, even
+  without `--delete-branch`. Retarget all descendants before the first
+  merge (bulk-landing order) or temporarily disable the setting for the
+  integration; what happens to descendant PRs under auto-delete is
+  untested.
 - [ ] Merge mode decided (`--merge` / `--squash` / `--rebase`). For the
   retarget-first bulk landing, the tip needs `--merge` (squash/rebase are
   not expected to trigger the automatic MERGED detection — untested).
@@ -59,8 +70,9 @@ integration. Placeholders throughout; nothing refers to a real repository.
 - [ ] After every merge: `gh pr view <n> --json state,mergedAt` must show
   `MERGED` before the next mutation.
 - [ ] Branch deletion happens once, at the end, only after every PR
-  reports `MERGED` and every `gh pr list --base <branch> --state open`
-  comes back empty.
+  reports `MERGED` and, for every branch, both
+  `gh pr list --base <branch> --state open` and
+  `gh pr list --head <branch> --state open` come back empty.
 - [ ] If a PR does get auto-closed: no `edit --base` / `reopen` retries —
   go straight to the
   [supersedes recovery](auto-close-recovery-template.md).

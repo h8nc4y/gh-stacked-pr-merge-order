@@ -65,10 +65,14 @@ gh pr view 103 --repo <owner>/<name> --json state,mergedAt
 ### Delete the head branches — one guarded sweep at the end
 
 ```bash
-# Every branch must have zero open dependents before deletion:
+# Every branch must have zero open PRs using it — as base (dependents)
+# and as head (a straggler PR that never reached MERGED):
 gh pr list --repo <owner>/<name> --base step-1 --state open   # must be empty
 gh pr list --repo <owner>/<name> --base step-2 --state open   # must be empty
 gh pr list --repo <owner>/<name> --base step-3 --state open   # must be empty
+gh pr list --repo <owner>/<name> --head step-1 --state open   # must be empty
+gh pr list --repo <owner>/<name> --head step-2 --state open   # must be empty
+gh pr list --repo <owner>/<name> --head step-3 --state open   # must be empty
 
 git push origin --delete step-1 step-2 step-3
 ```
@@ -79,8 +83,8 @@ Same stack, one merge. Works when the stack is purely additive (each head
 strictly contains its ancestors' commits).
 
 ```bash
-# 1. Retarget every open PR onto the default branch, bottom-up:
-gh pr edit 101 --repo <owner>/<name> --base main   # already based there; harmless to confirm
+# 1. Retarget every open PR onto the default branch, bottom-up.
+#    #101 already bases on main — no retarget needed for it.
 gh pr edit 102 --repo <owner>/<name> --base main
 gh pr edit 103 --repo <owner>/<name> --base main
 

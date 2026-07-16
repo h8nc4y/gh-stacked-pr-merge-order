@@ -50,6 +50,20 @@ base は #A の head branch、#C の base は #B の head branch）。`<default>
 `main` と決めつけず、`gh repo view <owner>/<name> --json defaultBranchRef -q
 .defaultBranchRef.name` で取得してください。
 
+また、最初の merge の前にリポジトリの自動削除設定を確認します:
+
+```bash
+gh repo view <owner>/<name> --json deleteBranchOnMerge
+```
+
+`deleteBranchOnMerge` が `true` の場合、`--delete-branch` を付けなくても
+merge のたびにサーバ側が head branch を削除するため、以下の逐次手順では
+最初の merge の時点で base branch が失われます。その場合は、何かを merge
+する *前に* 全子孫を default branch へ retarget する（後述の一括着地の
+順序）か、統合の間だけこの設定を一時的に無効化してください。auto-delete
+が base を消したときに GitHub が子孫 PR をどう扱うかは、ここでは未検証
+（untested）です — 依存しないでください。
+
 1. 最下段の PR を **`--delete-branch` を付けずに** merge する:
 
    ```bash
@@ -93,11 +107,13 @@ base は #A の head branch、#C の base は #B の head branch）。`<default>
    から、#C 以降も同様に「retarget → 確認 → merge」を繰り返す。
 
 6. head branch の削除は、スタックの **全 PR** が `MERGED` になった後に、
-   各 branch に依存する open PR が残っていないことを確認してから、まとめて
-   行う:
+   各 branch を base としても head としても使う open PR が残っていない
+   ことを確認してから、まとめて行う（head 側の確認は、自動 MERGED 判定
+   から漏れて open のままの PR を捕まえるため）:
 
    ```bash
    gh pr list --repo <owner>/<name> --base <branch> --state open   # 空であること
+   gh pr list --repo <owner>/<name> --head <branch> --state open   # 空であること
    git push origin --delete <A-head> <B-head> <C-head>
    ```
 
@@ -137,8 +153,19 @@ base は #A の head branch、#C の base は #B の head branch）。`<default>
 
 まず失われたものを特定します: `"state": "CLOSED"` かつ `"mergedAt": null`
 の PR は、内容が merge されないまま close されたものです。reopen は不可能
-なので、supersede（後継 PR）で復旧します。head branch は残っています —
-消えたのは base branch だけです:
+なので、supersede（後継 PR）で復旧します。
+
+どの branch が消えたかは経路次第です。スタック内の branch 削除で close
+された場合、消えたのは通常その PR の *base* branch で、head branch は
+残っています。後述の branch protection 罠の場合、消えたのはその PR
+*自身の head* です。何かを作る前に必ず確認します:
+
+```bash
+git ls-remote --heads origin <head-branch>   # ref が表示されること
+```
+
+head branch まで消えていたら、まずローカル clone か reflog から push で
+復元します。その上で supersedes PR を作成します:
 
 ```bash
 gh pr create --repo <owner>/<name> --head <same-head-branch> --base <default> \
@@ -182,8 +209,9 @@ protection 付きリポジトリでは、上限付きポーリングでチェッ
 ## 混成スタックの分割
 
 docs / refactor 用の stacked PR に無関係な feature commit が混ざっていた
-（またはその逆）場合、混ざったまま merge せず、スタックのその場書き換えも
-しないこと。分割します（実測済み）:
+場合、混ざったまま merge せず、スタックのその場書き換えもしないこと。
+分割します（この方向で実測済み。逆方向 — feature PR に docs commit が
+混入 — も手順は同じだが untested）:
 
 1. default branch から新しい branch を切る。
 2. 必要な commit だけを `git cherry-pick` する。
@@ -205,8 +233,9 @@ docs / refactor 用の stacked PR に無関係な feature commit が混ざって
 
 ## 禁止事項 / 停止条件
 
-- `gh pr list --base <branch> --state open` が 1 件でも PR を返す branch を
-  削除しない。
+- `gh pr list --base <branch> --state open` または
+  `gh pr list --head <branch> --state open` が 1 件でも PR を返す branch
+  を削除しない。
 - スタックの内側で `--delete-branch` を使わない（`--auto` との併用も含む）。
 - auto-close された PR に `gh pr edit --base` や `gh pr reopen` を再試行して
   結果が変わることを期待しない。直ちに supersedes 復旧へ進む。
@@ -219,8 +248,10 @@ docs / refactor 用の stacked PR に無関係な feature commit が混ざって
 
 - スタックの全 PR が `MERGED` を報告している:
   `gh pr view <n> --repo <owner>/<name> --json state,mergedAt`。
-- 削除予定のどの branch にも、それを base とする open PR が残っていない:
-  `gh pr list --repo <owner>/<name> --base <branch> --state open` が空。
+- 削除予定のどの branch にも、それを base または head として使う open PR
+  が残っていない: `gh pr list --repo <owner>/<name> --base <branch>
+  --state open` と `gh pr list --repo <owner>/<name> --head <branch>
+  --state open` が両方とも空。
 - head branch の削除は上記 2 つの確認の後、最後にまとめて 1 回。
 - superseded / auto-closed になった各 PR に、本文で
   `Supersedes #<n>` とリンクする後継 PR がある。

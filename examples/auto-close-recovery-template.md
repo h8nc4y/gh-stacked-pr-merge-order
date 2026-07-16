@@ -16,15 +16,18 @@ gh pr view 102 --repo <owner>/<name> --json state,mergedAt,headRefName,baseRefNa
   this template applies.
 - `"state": "MERGED"` → nothing was lost; stop here.
 
-Confirm the two dead ends, so nobody retries them later (both refusals are
-field-tested):
+Do not fire `gh pr edit --base` or `gh pr reopen` at the closed PR "just
+to check". For a PR GitHub auto-closed this way, both are refused
+(field-tested):
 
-```bash
-gh pr edit 102 --repo <owner>/<name> --base main
-# refused: "Cannot change the base branch of a closed pull request"
-gh pr reopen 102 --repo <owner>/<name>
-# refused as well for PRs GitHub auto-closed this way
-```
+- `gh pr edit 102 --repo <owner>/<name> --base main` →
+  `Cannot change the base branch of a closed pull request`
+- `gh pr reopen 102 --repo <owner>/<name>` → refused as well
+
+But on a PR a human closed *manually*, `gh pr reopen` succeeds and
+actually reopens it — an unintended mutation if you were only probing.
+The `CLOSED` + `mergedAt: null` reading above does not distinguish the
+two cases, so skip the probing and go straight to the recovery.
 
 ## 2. Verify the head branch still exists
 

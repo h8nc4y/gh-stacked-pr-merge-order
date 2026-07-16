@@ -67,6 +67,20 @@ For a stack #A ← #B ← #C (#A's base is the default branch, #B's base is
 `gh repo view <owner>/<name> --json defaultBranchRef -q
 .defaultBranchRef.name` instead of assuming `main`.
 
+Also check the repository's auto-delete setting before the first merge:
+
+```bash
+gh repo view <owner>/<name> --json deleteBranchOnMerge
+```
+
+If `deleteBranchOnMerge` is `true`, the server deletes each head branch
+as its PR merges — even without `--delete-branch` — so the step-by-step
+order below would lose a base branch at the very first merge. In that
+case retarget every descendant onto the default branch *before* merging
+anything (the bulk-landing order below), or temporarily disable the
+setting for the integration. What GitHub does to descendant PRs when
+auto-delete removes their base is untested here — do not rely on it.
+
 1. Merge the bottom PR **without** `--delete-branch`:
 
    ```bash
@@ -110,10 +124,13 @@ For a stack #A ← #B ← #C (#A's base is the default branch, #B's base is
    repeat retarget → verify → merge for #C and any further descendants.
 
 6. Delete head branches only after **every** PR in the stack reports
-   `MERGED`, and check each branch for remaining dependents first:
+   `MERGED`, and check each branch for remaining open PRs first — both as
+   a base and as a head (the head check catches a straggler PR the
+   automatic MERGED detection missed):
 
    ```bash
    gh pr list --repo <owner>/<name> --base <branch> --state open   # must be empty
+   gh pr list --repo <owner>/<name> --head <branch> --state open   # must be empty
    git push origin --delete <A-head> <B-head> <C-head>
    ```
 
@@ -156,8 +173,19 @@ Caveats:
 
 First identify what was lost: a PR reporting `"state": "CLOSED"` with
 `"mergedAt": null` was closed without its content merging. Reopening is
-not possible; supersede instead. The head branch still exists — only its
-base branch was deleted — so:
+not possible; supersede instead.
+
+Which branch died depends on how you got here. After a stack-internal
+branch deletion, the closed PR usually lost its *base* branch and its own
+head branch survives. After the branch-protection trap below, the deleted
+branch was the PR's *own head*. Verify before creating anything:
+
+```bash
+git ls-remote --heads origin <head-branch>   # must print a ref
+```
+
+If the head branch is gone too, push it back first from a local clone or
+reflog. Then create the supersedes PR:
 
 ```bash
 gh pr create --repo <owner>/<name> --head <same-head-branch> --base <default> \
@@ -203,8 +231,9 @@ recover with a supersedes PR exactly as above.
 ## Splitting Mixed Stacks
 
 When a stacked documentation or refactor PR turns out to contain unrelated
-feature commits (or the reverse), do not merge the mix and do not rewrite
-the stack in place. Split it (field-tested):
+feature commits, do not merge the mix and do not rewrite the stack in
+place. Split it (field-tested in that direction; the reverse case — a
+feature PR polluted with docs commits — is the same procedure, untested):
 
 1. Branch fresh from the default branch.
 2. `git cherry-pick` only the commits that belong.
@@ -229,7 +258,7 @@ conflict at almost every retarget or merge step.
 ## Do Not / Stop Conditions
 
 - Never delete a branch while `gh pr list --base <branch> --state open`
-  reports any PR.
+  or `gh pr list --head <branch> --state open` reports any PR.
 - Never use `--delete-branch` — including with `--auto` — inside a stack.
 - Do not retry `gh pr edit --base` or `gh pr reopen` against an
   auto-closed PR expecting a different outcome; go straight to the
@@ -244,9 +273,10 @@ conflict at almost every retarget or merge step.
 
 - Every PR in the stack reports `MERGED`:
   `gh pr view <n> --repo <owner>/<name> --json state,mergedAt`.
-- No open PR still bases on any branch about to be deleted:
-  `gh pr list --repo <owner>/<name> --base <branch> --state open` is
-  empty.
+- No open PR still uses any branch about to be deleted, as base or head:
+  `gh pr list --repo <owner>/<name> --base <branch> --state open` and
+  `gh pr list --repo <owner>/<name> --head <branch> --state open` are
+  both empty.
 - Head branches deleted only after the two checks above, in one final
   sweep.
 - Every superseded or auto-closed PR has a successor PR whose body links
