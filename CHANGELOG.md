@@ -6,6 +6,16 @@ The format loosely follows Keep a Changelog conventions.
 
 ## Unreleased
 
+### Added
+
+- Live verification log (`docs/VERIFICATION.md`): the sequential safe
+  order and the retarget-first bulk landing reproduced end-to-end on this
+  repository itself (a three-PR stack and a two-PR stack, zero
+  auto-closed PRs), plus a README pointer.
+- Safe merge order note: `mergeable` may report `UNKNOWN` immediately
+  after a retarget while GitHub recomputes it asynchronously; re-poll
+  before acting on it.
+
 ## 0.1.0 - 2026-07-16
 
 ### Added

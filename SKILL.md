@@ -111,6 +111,10 @@ auto-delete removes their base is untested here — do not rely on it.
    gh pr view <B> --repo <owner>/<name> --json mergeable,mergeStateStatus
    ```
 
+   Immediately after a retarget, `mergeable` may report `UNKNOWN` while
+   GitHub recomputes it asynchronously (observed as of July 2026);
+   re-poll until it settles to `MERGEABLE` or `CONFLICTING`.
+
    If `mergeable` is `CONFLICTING`, resolve on the head branch locally:
 
    ```bash
