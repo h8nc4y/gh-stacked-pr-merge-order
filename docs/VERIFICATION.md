@@ -10,3 +10,4 @@ end records how the landing went.
 - Stack A, layer 1 (base: default branch)
 - Stack A, layer 2 (base: layer 1's head branch)
 - Stack A, layer 3 (base: layer 2's head branch)
+- Stack B, layer 1 (base: default branch; landed via retarget-first bulk landing)
