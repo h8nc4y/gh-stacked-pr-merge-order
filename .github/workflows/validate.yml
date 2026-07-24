@@ -11,14 +11,21 @@ permissions:
 
 jobs:
   validate:
-    name: Validate skill repository
-    # windows-latest is intentional and left unpinned: this job only needs
-    # pwsh + git, so runner image migrations do not affect it. Pin to a dated
-    # label only if a future step depends on image-specific tooling.
-    runs-on: windows-latest
+    name: Validate skill repository (${{ matrix.os }})
+    # The scanner supports Windows PowerShell paths and POSIX PowerShell paths.
+    # Exercise both contracts so a platform-specific separator regression cannot
+    # silently turn a security scan into a partial scan.
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - windows-latest
+          - ubuntu-latest
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 25
     steps:
       - name: Check out repository
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
 
       - name: Validate OSS readiness
         shell: pwsh
@@ -31,6 +38,14 @@ jobs:
       - name: Scan for private markers
         shell: pwsh
         run: ./scripts/scan-private-markers.ps1
+
+      - name: Validate with Windows PowerShell 5.1
+        if: runner.os == 'Windows'
+        shell: powershell
+        run: |
+          ./scripts/validate-oss-readiness.ps1
+          ./scripts/test-scan-private-markers.ps1
+          ./scripts/scan-private-markers.ps1
 
       - name: Check whitespace
         shell: pwsh
