@@ -275,6 +275,11 @@ pwsh -NoProfile -File ./scripts/test-scan-private-markers.ps1
 pwsh -NoProfile -File ./scripts/scan-private-markers.ps1
 ```
 
+Bounded POSIX child cleanup uses the system `setsid` executable when
+available and a same-host `libc` `setsid(2)` gate otherwise. The self-test
+forces the fallback path, so macOS does not require an extra `setsid`
+package merely to run the scanner.
+
 Also run Git whitespace checks on your working changes before publishing:
 
 ```bash
@@ -282,8 +287,16 @@ git diff --check
 ```
 
 The GitHub Actions workflow runs the same validation, scan self-test,
-private-marker scan, and whitespace check on pull requests and pushes to
-`main`.
+private-marker scan, and committed-tree whitespace check on both Windows
+and Ubuntu for pull requests and pushes to `main`. The Windows job runs
+the checks under both PowerShell 7 and Windows PowerShell 5.1. Each matrix
+job has a 25-minute timeout. Scanner PowerShell sources use UTF-8 with BOM,
+and readiness validation checks the actual byte prefix as well as the
+repository editor policy.
+
+The scanner's hermetic boundary, finite budgets, fail-closed states, and
+portable process cleanup contract are specified in
+[docs/SCANNER-HARDENING.md](docs/SCANNER-HARDENING.md).
 
 ## Contributing
 
